@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoreo de Datos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+        .data-box {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 8px;
+            width: 300px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .data-box h2 {
+            margin: 0;
+            color: #555;
+        }
+        .data-box p {
+            margin: 10px 0;
+            font-size: 18px;
+            color: #333;
+        }
+        .log-box {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fafafa;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            width: 80%;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Monitoreo de Datos del ESP32</h1>
+
+    <div class="container">
+        <!-- Sección de datos -->
+        <div class="data-box">
+            <h2>Humedad y Temperatura</h2>
+            <p id="humidity">Humedad: - %</p>
+            <p id="temperature">Temperatura: - °C</p>
+        </div>
+
+        <div class="data-box">
+            <h2>Entradas y Salidas</h2>
+            <p id="entrada1">Entrada 1: -</p>
+            <p id="entrada2">Entrada 2: -</p>
+            <p id="salida1">Salida 1: -</p>
+            <p id="salida2">Salida 2: -</p>
+        </div>
+
+        <div class="data-box">
+            <h2>Hora</h2>
+            <p id="hora">Hora: -</p>
+        </div>
+
+        <div class="data-box">
+            <h2>Tecla Presionada</h2>
+            <p id="keyPressed">Tecla: -</p>
+        </div>
+
+        <!-- Sección de logs -->
+        <div class="log-box" id="logBox">
+            <h3>Log de Datos:</h3>
+            <p id="logData">Esperando datos...</p>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.14.2/firebase.js"></script>
+    <script>
+        // Configuración de Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyDaN8w6XEwKcU7ljYrlTm1TmJ3VZVS3EnU",
+            authDomain: "ejerpaginaweb.firebaseapp.com",
+            databaseURL: "https://ejerpaginaweb-default-rtdb.firebaseio.com",
+            projectId: "ejerpaginaweb",
+            storageBucket: "ejerpaginaweb.firebasestorage.app",
+            messagingSenderId: "356263364388",
+            appId: "1:356263364388:web:c40d1430b008a240eb15b1",
+            measurementId: "G-QPKVYY1L75"
+        };
+        firebase.initializeApp(firebaseConfig); // Inicializa la aplicación de Firebase
+
+        // Referencias a las diferentes secciones de la base de datos
+        const humedadRef = firebase.database().ref('biblioteca/humedad/hum2'); 
+        const temperaturaRef = firebase.database().ref('biblioteca/temperatura/tem2');
+        const horaRef = firebase.database().ref('biblioteca/hora');
+        const entrada1Ref = firebase.database().ref('biblioteca/entrada1');
+        const entrada2Ref = firebase.database().ref('biblioteca/entrada2');
+        const salida1Ref = firebase.database().ref('biblioteca/salida1');
+        const salida2Ref = firebase.database().ref('biblioteca/salida2');
+        const accesoRef = firebase.database().ref('biblioteca/acceso');
+        const humedad1Ref = firebase.database().ref('biblioteca/humedad/hum1');
+        const temperatura1Ref = firebase.database().ref('biblioteca/temperatura/tem1');
+        const temperatura3Ref = firebase.database().ref('biblioteca/temperatura/tem3');
+        const humedad3Ref = firebase.database().ref('biblioteca/humedad/hum3'); // Nueva referencia para hum3
+
+        let temperaturaContador = 0; // Contador para el número de lecturas de temperatura
+        let humedadContador = 0;
+
+        // Conexión con el servidor de Socket.io
+        const socket = io();
+
+        // Actualizar los valores de los datos
+        socket.on('data', function(data) {
+            // Mostrar valores en la interfaz
+            if (data.humidity) {
+                document.getElementById('humidity').textContent = `Humedad: ${data.humidity} %`;
+                humedadContador++; // Incrementar el contador de humedad
+                humedadRef.child(`lectura_${humedadContador}`).set({
+                    valor: `${data.humidity} %`
+                }); // Enviar el valor de la humedad a Firebase
+            }
+            if (data.temperature) {
+                document.getElementById('temperature').textContent = `Temperatura: ${data.temperature} °C`;
+                temperaturaContador++; // Incrementar el contador de temperatura
+                // Agregar la temperatura con el contador como un nuevo registro en la base de datos
+                temperaturaRef.child(`lectura_${temperaturaContador}`).set({
+                    valor: `${data.temperature} °C`
+                });
+            }
+            if (data.entrada1) {
+                document.getElementById('entrada1').textContent = `Entrada 1: ${data.entrada1}`;
+                entrada1Ref.set(data.entrada1);
+            }
+            if (data.entrada2) {
+                document.getElementById('entrada2').textContent = `Entrada 2: ${data.entrada2}`;
+                entrada2Ref.set(data.entrada2);
+            }
+            if (data.salida1) {
+                document.getElementById('salida1').textContent = `Salida 1: ${data.salida1}`;
+                salida1Ref.set(data.salida1);
+            }
+            if (data.salida2) {
+                document.getElementById('salida2').textContent = `Salida 2: ${data.salida2}`;
+                salida2Ref.set(data.salida2);
+            }
+            if (data.hora) {
+                document.getElementById('hora').textContent = `Hora: ${data.hora}`;
+                horaRef.set(data.hora);
+            }
+            if (data.keyPressed) {
+                document.getElementById('keyPressed').textContent = `Tecla: ${data.keyPressed}`;
+                accesoRef.set(data.keyPressed);
+            }
+        });
+
+        // Mostrar logs de datos
+        socket.on('log', function(data) {
+            const logBox = document.getElementById('logBox');
+            const logData = document.getElementById('logData');
+            logData.textContent = data;
+            logBox.scrollTop = logBox.scrollHeight; // Desplazar hacia abajo para ver el log más reciente
+        });
+    </script>
+    
+    <!-- Sección de la gráfica de temperatura -->
+    <div class="container" style="width: 100%; max-width: 100%; overflow-x: hidden;">
+        <div class="data-box" style="width: 100%;">
+            <h2>Gráfica de Temperatura 2</h2>
+            <canvas id="temperatureChart" style="width: 100%; height: 400px;"></canvas>
+        </div>
+    </div>
+  
+    <!-- Sección de la gráfica de humedad -->
+    <div class="container" style="width: 100%; max-width: 100%; overflow-x: hidden;">
+        <div class="data-box" style="width: 100%;">
+            <h2>Gráfica de Humedad 2</h2>
+            <canvas id="humidityChart" style="width: 100%; height: 400px;"></canvas>
+        </div>
+    </div>
+    
+
+    <!-- Sección de la gráfica de hum1 -->
+    <div class="container" style="width: 100%; max-width: 100%; overflow-x: hidden;">
+        <div class="data-box" style="width: 100%;">
+            <h2>Gráfica de Humedad 1</h2>
+            <canvas id="humidity1Chart" style="width: 100%; height: 400px;"></canvas>
+        </div>
+    </div>
+    
+
+    <!-- Sección de la gráfica de temperatura 1 -->
+    <div class="container" style="width: 100%; max-width: 100%; overflow-x: hidden;">
+        <div class="data-box" style="width: 100%;">
+            <h2>Gráfica de Temperatura 1</h2>
+            <canvas id="temperature1Chart" style="width: 100%; height: 400px;"></canvas>
+        </div>
+    </div>
+    
+
+    <!-- Sección de la gráfica de temperatura 3 -->
+    <div class="container" style="width: 100%; max-width: 100%; overflow-x: hidden;">
+        <div class="data-box" style="width: 100%;">
+            <h2>Gráfica de Temperatura 3</h2>
+            <canvas id="temperature3Chart" style="width: 100%; height: 400px;"></canvas>
+        </div>
+    </div>
+    
+
+    <!-- Sección de la gráfica de humedad 3 -->
+    <div class="container" style="width: 100%; max-width: 100%; overflow-x: hidden;">
+        <div class="data-box" style="width: 100%;">
+            <h2>Gráfica de Humedad 3</h2>
+            <canvas id="humidity3Chart" style="width: 100%; height: 400px;"></canvas>
+        </div>
+    </div>
+
+    <!-- Gráfica de Promedio de Humedad -->
+<div class="container" style="width: 100%; max-width: 100%; overflow-x: hidden;">
+    <div class="data-box" style="width: 100%;">
+        <h2>Promedio de Humedad</h2>
+        <canvas id="avgHumidityChart" style="width: 100%; height: 400px;"></canvas>
+    </div>
+</div>
+
+<!-- Gráfica de Promedio de Temperatura -->
+<div class="container" style="width: 100%; max-width: 100%; overflow-x: hidden;">
+    <div class="data-box" style="width: 100%;">
+        <h2>Promedio de Temperatura</h2>
+        <canvas id="avgTemperatureChart" style="width: 100%; height: 400px;"></canvas>
+    </div>
+</div>
+        
+  
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Inicialización de la gráfica de temperatura
+        let temperatureData = [];
+        let timeData = [];
+        const ctxTemperature = document.getElementById('temperatureChart').getContext('2d');
+        const temperatureChart = new Chart(ctxTemperature, {
+            type: 'line',
+            data: {
+                labels: timeData,
+                datasets: [{
+                    label: 'Temperatura (°C)',
+                    data: temperatureData,
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Tiempo'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Temperatura (°C)'
+                        },
+                        min: 0,
+                        max: 50,
+                        stepSize: 5
+                    }
+                }
+            }
+        });
+
+        // Obtener datos de temperatura en tiempo real desde Firebase
+        temperaturaRef.on('child_added', function(snapshot) {
+            const data = snapshot.val();
+            if (data && data.valor) {
+                const lastTemperature = parseFloat(data.valor.replace(" °C", ""));
+                const currentTime = new Date().toLocaleTimeString();
+                timeData.push(currentTime);
+                temperatureData.push(lastTemperature);
+
+                if (temperatureData.length > 73) {
+                    timeData.shift();
+                    temperatureData.shift();
+                }
+
+                temperatureChart.update();
+            }
+        });
+
+        // Inicialización de la gráfica de humedad
+        let humidityData = [];
+        let humidityTimeData = [];
+        const ctxHumidity = document.getElementById('humidityChart').getContext('2d');
+        const humidityChart = new Chart(ctxHumidity, {
+            type: 'line',
+            data: {
+                labels: humidityTimeData,
+                datasets: [{
+                    label: 'Humedad (%)',
+                    data: humidityData,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Tiempo'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Humedad (%)'
+                        },
+                        min: 0,
+                        max: 100,
+                        stepSize: 10
+                    }
+                }
+            }
+        });
+
+        // Obtener datos de humedad en tiempo real desde Firebase
+        humedadRef.on('child_added', function(snapshot) {
+            const data = snapshot.val();
+            if (data && data.valor) {
+                const lastHumidity = parseFloat(data.valor.replace(" %", ""));
+                const currentTime = new Date().toLocaleTimeString();
+                humidityTimeData.push(currentTime);
+                humidityData.push(lastHumidity);
+
+                if (humidityData.length > 73) {
+                    humidityTimeData.shift();
+                    humidityData.shift();
+                }
+
+                humidityChart.update();
+            }
+        });
+
+        // Gráfica de humedad 1 añadida
+        let humidity1Data = [];
+        let humidity1TimeData = [];
+        const ctxHumidity1 = document.getElementById('humidity1Chart').getContext('2d');
+        const humidity1Chart = new Chart(ctxHumidity1, {
+            type: 'line',
+            data: {
+                labels: humidity1TimeData,
+                datasets: [{
+                    label: 'Humedad 1 (%)',
+                    data: humidity1Data,
+                    borderColor: 'rgba(255, 159, 64, 1)', 
+                    backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Tiempo'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Humedad (%)'
+                        },
+                        min: 0,
+                        max: 100,
+                        stepSize: 10
+                    }
+                }
+            }
+        });
+
+        humedad1Ref.on('child_added', function(snapshot) {
+            const data = snapshot.val();
+            if (data && data.valor) {
+                const valHum1 = parseFloat(data.valor.replace(" %", ""));
+                const currentTime = new Date().toLocaleTimeString();
+                humidity1TimeData.push(currentTime);
+                humidity1Data.push(valHum1);
+
+                if (humidity1Data.length > 73) {
+                    humidity1TimeData.shift();
+                    humidity1Data.shift();
+                }
+
+                humidity1Chart.update();
+            }
+        });
+
+        // Gráfica de temperatura 1 añadida
+        let temperature1Data = [];
+        let temperature1TimeData = [];
+        const ctxTemperature1 = document.getElementById('temperature1Chart').getContext('2d');
+        const temperature1Chart = new Chart(ctxTemperature1, {
+            type: 'line',
+            data: {
+                labels: temperature1TimeData,
+                datasets: [{
+                    label: 'Temperatura 1 (°C)',
+                    data: temperature1Data,
+                    borderColor: 'rgba(153, 102, 255, 1)', 
+                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Tiempo'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Temperatura (°C)'
+                        },
+                        min: 0,
+                        max: 50,
+                        stepSize: 5
+                    }
+                }
+            }
+        });
+
+        temperatura1Ref.on('child_added', function(snapshot) {
+            const data = snapshot.val();
+            if (data && data.valor) {
+                const valTemp1 = parseFloat(data.valor);
+                const currentTime = new Date().toLocaleTimeString();
+                temperature1TimeData.push(currentTime);
+                temperature1Data.push(valTemp1);
+
+                if (temperature1Data.length > 73) {
+                    temperature1TimeData.shift();
+                    temperature1Data.shift();
+                }
+
+                temperature1Chart.update();
+            }
+        });
+
+        // Gráfica de temperatura 3 añadida
+        let temperature3Data = [];
+        let temperature3TimeData = [];
+        const ctxTemperature3 = document.getElementById('temperature3Chart').getContext('2d');
+        const temperature3Chart = new Chart(ctxTemperature3, {
+            type: 'line',
+            data: {
+                labels: temperature3TimeData,
+                datasets: [{
+                    label: 'Temperatura 3 (°C)',
+                    data: temperature3Data,
+                    borderColor: 'rgba(255, 99, 132, 1)', 
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Tiempo'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Temperatura (°C)'
+                        },
+                        min: 0,
+                        max: 50,
+                        stepSize: 5
+                    }
+                }
+            }
+        });
+
+        temperatura3Ref.on('child_added', function(snapshot) {
+            const data = snapshot.val();
+            if (data && data.valor) {
+                const valTemp3 = parseFloat(data.valor);
+                const currentTime = new Date().toLocaleTimeString();
+                temperature3TimeData.push(currentTime);
+                temperature3Data.push(valTemp3);
+
+                if (temperature3Data.length > 73) {
+                    temperature3TimeData.shift();
+                    temperature3Data.shift();
+                }
+
+                temperature3Chart.update();
+            }
+        });
+
+        // Gráfica de humedad 3 añadida
+        let humidity3Data = [];
+        let humidity3TimeData = [];
+        const ctxHumidity3 = document.getElementById('humidity3Chart').getContext('2d');
+        const humidity3Chart = new Chart(ctxHumidity3, {
+            type: 'line',
+            data: {
+                labels: humidity3TimeData,
+                datasets: [{
+                    label: 'Humedad 3 (%)',
+                    data: humidity3Data,
+                    borderColor: 'rgba(75, 192, 192, 1)', 
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Tiempo'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Humedad (%)'
+                        },
+                        min: 0,
+                        max: 100,
+                        stepSize: 10
+                    }
+                }
+            }
+        });
+
+        humedad3Ref.on('child_added', function(snapshot) {
+            const data = snapshot.val();
+            if (data && data.valor) {
+                const valHum3 = parseFloat(data.valor);
+                const currentTime = new Date().toLocaleTimeString();
+                humidity3TimeData.push(currentTime);
+                humidity3Data.push(valHum3);
+
+                if (humidity3Data.length > 73) {
+                    humidity3TimeData.shift();
+                    humidity3Data.shift();
+                }
+
+                humidity3Chart.update();
+            }
+        });
+
+        // Datos para calcular y graficar el promedio
+    let humiditySources = { hum1: [], hum2: [], hum3: [] };
+    let temperatureSources = { tem1: [], tem2: [], tem3: [] };
+
+    // Función para calcular el promedio de un conjunto de datos
+    function calculateAverage(data) {
+        const allValues = Object.values(data).flat();
+        if (allValues.length === 0) return null;
+        const sum = allValues.reduce((a, b) => a + b, 0);
+        return (sum / allValues.length).toFixed(2);
+    }
+
+    // Inicialización de la gráfica del promedio de humedad
+    const ctxAvgHumidity = document.getElementById('avgHumidityChart').getContext('2d');
+    const avgHumidityChart = new Chart(ctxAvgHumidity, {
+        type: 'line',
+        data: {
+            labels: [], // Etiquetas de tiempo
+            datasets: [{
+                label: 'Promedio de Humedad (%)',
+                data: [],
+                borderColor: 'rgba(0, 123, 255, 1)',
+                backgroundColor: 'rgba(0, 123, 255, 0.2)',
+                fill: true,
+                tension: 0.1
+            }]
+        },
+        options: {
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Tiempo'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Humedad (%)'
+                    },
+                    min: 0,
+                    max: 100,
+                    stepSize: 10
+                }
+            }
+        }
+    });
+
+    // Inicialización de la gráfica del promedio de temperatura
+    const ctxAvgTemperature = document.getElementById('avgTemperatureChart').getContext('2d');
+    const avgTemperatureChart = new Chart(ctxAvgTemperature, {
+        type: 'line',
+        data: {
+            labels: [], // Etiquetas de tiempo
+            datasets: [{
+                label: 'Promedio de Temperatura (°C)',
+                data: [],
+                borderColor: 'rgba(255, 99, 132, 1)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                fill: true,
+                tension: 0.1
+            }]
+        },
+        options: {
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Tiempo'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Temperatura (°C)'
+                    },
+                    min: 0,
+                    max: 50,
+                    stepSize: 5
+                }
+            }
+        }
+    });
+
+    // Función para actualizar el promedio de humedad
+    function updateAverageHumidity() {
+        const avgHumidity = calculateAverage(humiditySources);
+        if (avgHumidity !== null) {
+            const currentTime = new Date().toLocaleTimeString();
+            avgHumidityChart.data.labels.push(currentTime);
+            avgHumidityChart.data.datasets[0].data.push(avgHumidity);
+
+            if (avgHumidityChart.data.datasets[0].data.length > 73) {
+                avgHumidityChart.data.labels.shift();
+                avgHumidityChart.data.datasets[0].data.shift();
+            }
+
+            avgHumidityChart.update();
+        }
+    }
+
+    // Función para actualizar el promedio de temperatura
+    function updateAverageTemperature() {
+        const avgTemperature = calculateAverage(temperatureSources);
+        if (avgTemperature !== null) {
+            const currentTime = new Date().toLocaleTimeString();
+            avgTemperatureChart.data.labels.push(currentTime);
+            avgTemperatureChart.data.datasets[0].data.push(avgTemperature);
+
+            if (avgTemperatureChart.data.datasets[0].data.length > 73) {
+                avgTemperatureChart.data.labels.shift();
+                avgTemperatureChart.data.datasets[0].data.shift();
+            }
+
+            avgTemperatureChart.update();
+        }
+    }
+
+    // Obtener datos de humedad y actualizar el promedio
+    [humedad1Ref, humedadRef, humedad3Ref].forEach((ref, index) => {
+        ref.on('child_added', function(snapshot) {
+            const data = snapshot.val();
+            if (data && data.valor) {
+                const humidityValue = parseFloat(data.valor.replace(" %", ""));
+                humiditySources[`hum${index + 1}`].push(humidityValue);
+                updateAverageHumidity();
+            }
+        });
+    });
+
+    // Obtener datos de temperatura y actualizar el promedio
+    [temperatura1Ref, temperaturaRef, temperatura3Ref].forEach((ref, index) => {
+        ref.on('child_added', function(snapshot) {
+            const data = snapshot.val();
+            if (data && data.valor) {
+                const temperatureValue = parseFloat(data.valor.replace(" °C", ""));
+                temperatureSources[`tem${index + 1}`].push(temperatureValue);
+                updateAverageTemperature();
+            }
+        });
+    });
+        
+    </script>
+
+</body>
+</html>
